@@ -1,99 +1,133 @@
 import asyncio
 import json
-
+import os
 import websockets
-from websockets.legacy.protocol import WebSocketCommonProtocol
-from websockets.legacy.server import WebSocketServerProtocol
+from google import genai
+import base64
 
-HOST = "us-central1-aiplatform.googleapis.com"
-SERVICE_URL = f"wss://{HOST}/ws/google.cloud.aiplatform.v1beta1.LlmBidiService/BidiGenerateContent"
+# 環境変数からAPIキーを設定する
+os.environ['GOOGLE_API_KEY'] = ''  # 実際に使用するAPIキーをここに設定します
+MODEL = "gemini-2.0-flash-exp"  # 使用するモデルID
 
-DEBUG = False
+# Google Gemini API クライアントを初期化
+client = genai.Client(
+  http_options={
+    'api_version': 'v1alpha',  # 使用するAPIのバージョン
+  }
+)
+
+# WebSocketサーバーの処理
+async def gemini_session_handler(client_websocket: websockets.WebSocketServerProtocol):
+    """Handles the interaction with Gemini API within a websocket session."""
+    try:
+        # クライアントから設定メッセージを受け取る
+        config_message = await client_websocket.recv()
+        config_data = json.loads(config_message)
+        config = config_data.get("setup", {})
+        
+        # システムインストラクションを設定
+        config["system_instruction"] = "You are a daily life assistant."
+        
+        # Gemini APIとの接続を開始
+        async with client.aio.live.connect(model=MODEL, config=config) as session:
+            print("Connected to Gemini API")
+
+            # クライアントから受け取ったメッセージをGemini APIに送信
+            async def send_to_gemini():
+                """Sends messages from the client websocket to the Gemini API."""
+                try:
+                  async for message in client_websocket:
+                      try:
+                          data = json.loads(message)
+                          if "realtime_input" in data:
+                              # リアルタイムの入力データを処理
+                              for chunk in data["realtime_input"]["media_chunks"]:
+                                  # 音声データの場合
+                                  if chunk["mime_type"] == "audio/pcm":
+                                      # ここでは音声チャンクをGemini APIに送信
+                                      await session.send(input={"mime_type": "audio/pcm", "data": chunk["data"]})
+                                      
+                                  # 画像データの場合
+                                  elif chunk["mime_type"] == "image/jpeg":
+                                      print(f"Sending image chunk: {chunk['data'][:50]}")
+                                      await session.send(input={"mime_type": "image/jpeg", "data": chunk["data"]})
+                                      
+                      except Exception as e:
+                          print(f"Error sending to Gemini: {e}")
+                  print("Client connection closed (send)")
+                except Exception as e:
+                     print(f"Error sending to Gemini: {e}")
+                finally:
+                   print("send_to_gemini closed")
 
 
-async def proxy_task(
-    client_websocket: WebSocketCommonProtocol, server_websocket: WebSocketCommonProtocol
-) -> None:
-    """
-    Forwards messages from one WebSocket connection to another.
+            # Gemini API からのレスポンスをクライアントに送信
+            async def receive_from_gemini():
+                """Receives responses from the Gemini API and forwards them to the client, looping until turn is complete."""
+                try:
+                    while True:
+                        try:
+                            print("receiving from gemini")
+                            async for response in session.receive():
+                                # サーバーからのコンテンツが空の場合、メッセージを無視
+                                if response.server_content is None:
+                                    print(f'Unhandled server message! - {response}')
+                                    continue
 
-    Args:
-        client_websocket: The WebSocket connection from which to receive messages.
-        server_websocket: The WebSocket connection to which to send messages.
-    """
-    async for message in client_websocket:
-        try:
-            data = json.loads(message)
-            if DEBUG:
-                print("proxying: ", data)
-            await server_websocket.send(json.dumps(data))
-        except Exception as e:
-            print(f"Error processing message: {e}")
+                                model_turn = response.server_content.model_turn
+                                if model_turn:
+                                    # モデルのターンが存在する場合、出力を処理
+                                    for part in model_turn.parts:
+                                        if hasattr(part, 'text') and part.text is not None:
+                                            # テキスト出力があればクライアントに送信
+                                            await client_websocket.send(json.dumps({"text": part.text}))
+                                        elif hasattr(part, 'inline_data') and part.inline_data is not None:
+                                            # 音声出力があればBase64エンコードしてクライアントに送信
+                                            print("audio mime_type:", part.inline_data.mime_type)
+                                            base64_audio = base64.b64encode(part.inline_data.data).decode('utf-8')
+                                            
+                                            await client_websocket.send(json.dumps({"audio": base64_audio}))
+                                            
+                                            print("audio received")
 
-    await server_websocket.close()
+                                # ターンが完了したら終了
+                                if response.server_content.turn_complete:
+                                    print('\n<Turn complete>')
+                                    
+                        except websockets.exceptions.ConnectionClosedOK:
+                            # クライアントの接続が正常に閉じられた場合
+                            print("Client connection closed normally (receive)")
+                            break  # コネクションが閉じられたらループを終了
+                        except Exception as e:
+                            print(f"Error receiving from Gemini: {e}")
+                            break  # エラーが発生した場合ループを終了
 
-
-async def create_proxy(
-    client_websocket: WebSocketCommonProtocol, bearer_token: str
-) -> None:
-    """
-    Establishes a WebSocket connection to the server and creates two tasks for
-    bidirectional message forwarding between the client and the server.
-
-    Args:
-        client_websocket: The WebSocket connection of the client.
-        bearer_token: The bearer token for authentication with the server.
-    """
-
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {bearer_token}",
-    }
-
-    async with websockets.connect(
-        SERVICE_URL, additional_headers=headers
-    ) as server_websocket:
-        client_to_server_task = asyncio.create_task(
-            proxy_task(client_websocket, server_websocket)
-        )
-        server_to_client_task = asyncio.create_task(
-            proxy_task(server_websocket, client_websocket)
-        )
-        await asyncio.gather(client_to_server_task, server_to_client_task)
+                except Exception as e:
+                      print(f"Error receiving from Gemini: {e}")
+                finally:
+                      print("Gemini connection closed (receive)")
 
 
-async def handle_client(client_websocket: WebSocketServerProtocol) -> None:
-    """
-    Handles a new client connection, expecting the first message to contain a bearer token.
-    Establishes a proxy connection to the server upon successful authentication.
+            # メッセージ送信ループを非同期タスクとして開始
+            send_task = asyncio.create_task(send_to_gemini())
+            # 受信ループをバックグラウンドタスクとして開始
+            receive_task = asyncio.create_task(receive_from_gemini())
+            # 両方のタスクを同時に実行
+            await asyncio.gather(send_task, receive_task)
 
-    Args:
-        client_websocket: The WebSocket connection of the client.
-    """
-    print("New connection...")
-    # Wait for the first message from the client
-    auth_message = await asyncio.wait_for(client_websocket.recv(), timeout=5.0)
-    auth_data = json.loads(auth_message)
 
-    if "bearer_token" in auth_data:
-        bearer_token = auth_data["bearer_token"]
-    else:
-        print("Error: Bearer token not found in the first message.")
-        await client_websocket.close(code=1008, reason="Bearer token missing")
-        return
-
-    await create_proxy(client_websocket, bearer_token)
+    except Exception as e:
+        print(f"Error in Gemini session: {e}")
+    finally:
+        print("Gemini session closed.")
 
 
 async def main() -> None:
-    """
-    Starts the WebSocket server and listens for incoming client connections.
-    """
-    async with websockets.serve(handle_client, "localhost", 8080):
-        print("Running websocket server localhost:8080...")
-        # Run forever
-        await asyncio.Future()
-        
-        
+    """Starts the WebSocket server and listens for incoming client connections."""
+    async with websockets.serve(gemini_session_handler, "0.0.0.0", 9084):
+        print("Running websocket server 0.0.0.0:9084...")
+        await asyncio.Future()  # サーバーが常に動作し続けるように待機
+
+
 if __name__ == "__main__":
     asyncio.run(main())
