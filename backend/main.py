@@ -20,13 +20,13 @@ client = genai.Client(
 async def gemini_session_handler(client_websocket: websockets.WebSocketServerProtocol):
     """WebSocketセッション内でGemini APIとの対話を処理する."""
     try:
-        # クライアントから設定メッセージを受け取る
+        # geminiのレスポンス設定
         config_message = await client_websocket.recv()
         config_data = json.loads(config_message)
         config = config_data.get("setup", {})
         
-        # システムインストラクションを設定
-        config["system_instruction"] = "You are a daily life assistant."
+        # 追加でプロンプトを設定
+        config["system_instruction"] = "日本語で答えてください"
         
         # Gemini APIとの接続を開始
         async with client.aio.live.connect(model=MODEL, config=config) as session:

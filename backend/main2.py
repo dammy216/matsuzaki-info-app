@@ -20,12 +20,12 @@ client = genai.Client(http_options={'api_version': 'v1alpha'})
 @socket.on("connect")
 async def connect(sid, environ):
     """ クライアントが接続した際に呼ばれる """
-    print(f"Client connected: {sid}")
+    print(f"以下のクライアントが接続しました: {sid}")
 
 @socket.on("disconnect")
 async def disconnect(sid):
     """ クライアントが切断された際に呼ばれる """
-    print(f"Client disconnected: {sid}")
+    print(f"以下のクライアントの接続が切れました: {sid}")
 
 @socket.on("setup")
 async def setup(sid, data):
@@ -47,8 +47,17 @@ async def send_to_gemini(sid, data):
     for chunk in data.get("media_chunks", []):
         mime_type = chunk.get("mime_type")
         chunk_data = chunk.get("data")
-        if mime_type and chunk_data:
-            await session.send(input={"mime_type": mime_type, "data": chunk_data})
+        
+        if not mime_type or not chunk_data:
+            continue
+        
+        if mime_type == "audio/pcm":
+            await session.send(input={"mime_type": "audio/pcm", "data": chunk_data})
+        
+        elif mime_type == "image/jpeg":
+            print(f"画像チャンクを送信します: {chunk_data[:50]}")
+            await session.send(input={"mime_type": "image/jpeg", "data": chunk_data})
+
 
 @socket.on("get_response")
 async def receive_from_gemini(sid):
