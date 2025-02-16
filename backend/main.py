@@ -18,7 +18,7 @@ client = genai.Client(
 
 # WebSocketサーバーの処理
 async def gemini_session_handler(client_websocket: websockets.WebSocketServerProtocol):
-    """Handles the interaction with Gemini API within a websocket session."""
+    """WebSocketセッション内でGemini APIとの対話を処理する."""
     try:
         # クライアントから設定メッセージを受け取る
         config_message = await client_websocket.recv()
@@ -30,11 +30,11 @@ async def gemini_session_handler(client_websocket: websockets.WebSocketServerPro
         
         # Gemini APIとの接続を開始
         async with client.aio.live.connect(model=MODEL, config=config) as session:
-            print("Connected to Gemini API")
+            print("Gemini APIに接続")
 
             # クライアントから受け取ったメッセージをGemini APIに送信
             async def send_to_gemini():
-                """Sends messages from the client websocket to the Gemini API."""
+                """クライアントWebSocketからGemini APIにメッセージを送信します."""
                 try:
                   async for message in client_websocket:
                       try:
@@ -49,29 +49,29 @@ async def gemini_session_handler(client_websocket: websockets.WebSocketServerPro
                                       
                                   # 画像データの場合
                                   elif chunk["mime_type"] == "image/jpeg":
-                                      print(f"Sending image chunk: {chunk['data'][:50]}")
+                                      print(f"画像チャンクを送信します: {chunk['data'][:50]}")
                                       await session.send(input={"mime_type": "image/jpeg", "data": chunk["data"]})
                                       
                       except Exception as e:
-                          print(f"Error sending to Gemini: {e}")
-                  print("Client connection closed (send)")
+                          print(f"ジェミニへのエラーの送信: {e}")
+                  print("クライアント接続が閉じました (send)")
                 except Exception as e:
-                     print(f"Error sending to Gemini: {e}")
+                     print(f"ジェミニへのエラーの送信: {e}")
                 finally:
-                   print("send_to_gemini closed")
+                   print("send_to_gemini閉じた")
 
 
             # Gemini API からのレスポンスをクライアントに送信
             async def receive_from_gemini():
-                """Receives responses from the Gemini API and forwards them to the client, looping until turn is complete."""
+                """Gemini APIから回答を受け取り、クライアントに転送し、ターンが完了するまでループする."""
                 try:
                     while True:
                         try:
-                            print("receiving from gemini")
+                            print("ジェミニから受信")
                             async for response in session.receive():
                                 # サーバーからのコンテンツが空の場合、メッセージを無視
                                 if response.server_content is None:
-                                    print(f'Unhandled server message! - {response}')
+                                    print(f'未処理のサーバーメッセージ! - {response}')
                                     continue
 
                                 model_turn = response.server_content.model_turn
@@ -96,16 +96,16 @@ async def gemini_session_handler(client_websocket: websockets.WebSocketServerPro
                                     
                         except websockets.exceptions.ConnectionClosedOK:
                             # クライアントの接続が正常に閉じられた場合
-                            print("Client connection closed normally (receive)")
+                            print("クライアント接続は正常に閉じられました (receive)")
                             break  # コネクションが閉じられたらループを終了
                         except Exception as e:
-                            print(f"Error receiving from Gemini: {e}")
+                            print(f"ジェミニからのエラーの受信エラー: {e}")
                             break  # エラーが発生した場合ループを終了
 
                 except Exception as e:
-                      print(f"Error receiving from Gemini: {e}")
+                      print(f"ジェミニからのエラーの受信エラー: {e}")
                 finally:
-                      print("Gemini connection closed (receive)")
+                      print("Gemini接続は閉じました (receive)")
 
 
             # メッセージ送信ループを非同期タスクとして開始
@@ -117,15 +117,16 @@ async def gemini_session_handler(client_websocket: websockets.WebSocketServerPro
 
 
     except Exception as e:
-        print(f"Error in Gemini session: {e}")
+        print(f"ジェミニセッションのエラー: {e}")
     finally:
-        print("Gemini session closed.")
+        print("ジェミニセッションは終了しました.")
 
 
+# gemini_session_handler を起動
 async def main() -> None:
-    """Starts the WebSocket server and listens for incoming client connections."""
+    """WebSocketサーバーを起動し、着信クライアント接続のためにリッスンします."""
     async with websockets.serve(gemini_session_handler, "0.0.0.0", 9084):
-        print("Running websocket server 0.0.0.0:9084...")
+        print("WebSocketServer 0.0.0.0:9084の実行中...")
         await asyncio.Future()  # サーバーが常に動作し続けるように待機
 
 
