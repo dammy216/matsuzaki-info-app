@@ -5,16 +5,11 @@ import websockets
 from google import genai
 import base64
 
-# 環境変数からAPIキーを設定する
-os.environ['GOOGLE_API_KEY'] = ''  # 実際に使用するAPIキーをここに設定します
-MODEL = "gemini-2.0-flash-exp"  # 使用するモデルID
 
 # Google Gemini API クライアントを初期化
-client = genai.Client(
-  http_options={
-    'api_version': 'v1alpha',  # 使用するAPIのバージョン
-  }
-)
+client = genai.Client(api_key="", http_options={'api_version': 'v1alpha'})
+
+MODEL = "gemini-2.0-flash-exp"  # 使用するモデルID
 
 # WebSocketサーバーの処理
 async def gemini_session_handler(client_websocket: websockets.WebSocketServerProtocol):

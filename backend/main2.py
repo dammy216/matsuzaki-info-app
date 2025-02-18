@@ -6,16 +6,13 @@ from fastapi import FastAPI
 from fastapi_socketio import SocketManager
 from google import genai
 
-# 環境変数からAPIキーを設定する
-os.environ['GOOGLE_API_KEY'] = ''  # 実際に使用するAPIキーを設定
-MODEL = "gemini-2.0-flash-exp"
-
 # FastAPI アプリの作成
 app = FastAPI()
 socket = SocketManager(app)
 
 # Google Gemini API クライアントを初期化
-client = genai.Client(http_options={'api_version': 'v1alpha'})
+client = genai.Client(api_key="", http_options={'api_version': 'v1alpha'})
+MODEL = "gemini-2.0-flash-exp"
 
 @socket.on("connect")
 async def connect(sid, environ):
