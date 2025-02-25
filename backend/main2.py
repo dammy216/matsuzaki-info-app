@@ -1,86 +1,65 @@
-import json
-import os
-import asyncio
-import base64
 from fastapi import FastAPI
-from fastapi_socketio import SocketManager
+import socketio
+import uvicorn
 from google import genai
+import sounddevice as sd
+import numpy as np
+import base64
 
-# FastAPI アプリの作成
+# SocketIO 初期化
+sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*")
 app = FastAPI()
-socket = SocketManager(app)
+socket_app = socketio.ASGIApp(sio, app)
 
-# Google Gemini API クライアントを初期化
+# GenAI API 初期化
 client = genai.Client(api_key="", http_options={'api_version': 'v1alpha'})
-MODEL = "gemini-2.0-flash-exp"
+model_id = "gemini-2.0-flash-exp"
+config = {"responseModalities": ["AUDIO"]}
 
-@socket.on("connect")
+@sio.event
 async def connect(sid, environ):
-    """ クライアントが接続した際に呼ばれる """
-    print(f"以下のクライアントが接続しました: {sid}")
+    print(f"✅ クライアント {sid} が接続しました")
 
-@socket.on("disconnect")
+@sio.event
+async def chatTest(sid, data):
+    audio_buffer = b""  # 音声データを貯めるバッファ
+
+    async with client.aio.live.connect(model=model_id, config=config) as session:
+        
+        message = data["realtime_input"][0]
+            
+        if message["mime_type"] == "audio/pcm":
+            decoded_data = base64.b64decode(message["data"])
+             # **2. 音声データを Gemini に送信**
+            await session.send(input={"mime_type": "audio/pcm", "data": decoded_data})
+            print(f"音声チャンクを送信します: {decoded_data[:50]}")
+        # elif message["mime_type"] == "image/jpeg":
+        #      # **3. 画像データを Gemini に送信**
+        #     await session.send(input={"mime_type": "image/jpeg", "data": decoded_data})
+
+        # 一文字生成するごとにレスポンスを返してる
+        async for response in session.receive():
+            print(f"レスポンス: {response}")
+            if response.server_content:
+                    model_turn = response.server_content.model_turn
+                    if model_turn:
+                        for part in model_turn.parts:
+                            if hasattr(part, 'text') and part.text:
+                                print(part.text)
+                            elif hasattr(part, 'inline_data') and part.inline_data:
+                                audio_buffer += part.inline_data.data  # バッファにデータを追加
+
+        if audio_buffer:
+            audio_array = np.frombuffer(audio_buffer, dtype=np.int16)  # バッファからnumpy配列に変換
+            sd.play(audio_array, samplerate=24000)  # 一気に再生
+            sd.wait()
+
+@sio.event
 async def disconnect(sid):
-    """ クライアントが切断された際に呼ばれる """
-    print(f"以下のクライアントの接続が切れました: {sid}")
+    print(f"❌ クライアント {sid} が切断しました")
 
-@socket.on("setup")
-async def setup(sid, data):
-    """ クライアントからのセットアップメッセージを処理し、Gemini API のセッションを開始する """
-    config = data.get("setup", {})
-    config["system_instruction"] = "You are a daily life assistant."
-    session = await client.aio.live.connect(model=MODEL, config=config)
-    app.state.sessions[sid] = session
-    print(f"Gemini APIセッション開始: {sid}")
-
-@socket.on("realtime_input")
-async def send_to_gemini(sid, data):
-    """ クライアントからのリアルタイムデータを Gemini API に送信する """
-    session = app.state.sessions.get(sid)
-    if not session:
-        print(f"セッションなし: {sid}")
-        return
-    
-    for chunk in data.get("media_chunks", []):
-        mime_type = chunk.get("mime_type")
-        chunk_data = chunk.get("data")
-        
-        if not mime_type or not chunk_data:
-            continue
-        
-        if mime_type == "audio/pcm":
-            await session.send(input={"mime_type": "audio/pcm", "data": chunk_data})
-        
-        elif mime_type == "image/jpeg":
-            print(f"画像チャンクを送信します: {chunk_data[:50]}")
-            await session.send(input={"mime_type": "image/jpeg", "data": chunk_data})
-
-
-@socket.on("get_response")
-async def receive_from_gemini(sid):
-    """ Gemini API からのレスポンスを受信し、クライアントに送信する """
-    session = app.state.sessions.get(sid)
-    if not session:
-        print(f"セッションなし: {sid}")
-        return
-    
-    async for response in session.receive():
-        if response.server_content:
-            model_turn = response.server_content.model_turn
-            if model_turn:
-                for part in model_turn.parts:
-                    if hasattr(part, 'text') and part.text:
-                        # 受信したテキストをクライアントに送信
-                        await socket.emit("response", {"text": part.text}, room=sid)
-                    elif hasattr(part, 'inline_data') and part.inline_data:
-                        # 受信した音声データを Base64 に変換してクライアントに送信
-                        base64_audio = base64.b64encode(part.inline_data.data).decode('utf-8')
-                        await socket.emit("response", {"audio": base64_audio}, room=sid)
-    
-        if response.server_content.turn_complete:
-            print(f"Turn complete: {sid}")
-
+# サーバー起動
 if __name__ == "__main__":
-    import uvicorn
-    app.state.sessions = {}  # クライアントごとのセッションを管理する辞書
-    uvicorn.run(app, host="0.0.0.0", port=9084)
+    uvicorn.run(socket_app, host="0.0.0.0", port=8080)
+
+# uvicorn main2:socket_app --host 0.0.0.0 --port 8080 --reload
