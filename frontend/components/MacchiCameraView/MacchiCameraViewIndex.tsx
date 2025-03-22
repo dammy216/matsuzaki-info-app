@@ -17,6 +17,7 @@ const MacchiCameraViewIndex = () => {
   const [permission, requestPermission] = useCameraPermissions();
   const [isRecording, setIsRecording] = useState(false);
   const [recordingData, setRecordingData] = useState<Audio.Recording | null>(null);
+  const [jpegBase64, setJpegBase64] = useState<string | null>(null);
 
   const cameraRef = useRef<CameraView | null>(null);
 
@@ -44,6 +45,10 @@ const MacchiCameraViewIndex = () => {
     }, [])
   );
 
+  socket.on('connect', () => {
+    console.log('🟢 接続成功');
+  });
+
   const startRecord = async () => {
     setIsRecording(true);
 
@@ -55,6 +60,11 @@ const MacchiCameraViewIndex = () => {
         setIsRecording(false);
         return;
       }
+
+      // if (cameraRef.current) {
+      //   const image = await cameraRef.current.takePictureAsync({ base64: true, imageType: 'jpg' });
+      //   setJpegBase64(image?.base64 ?? null);
+      // }
 
       const newRecording = new Audio.Recording();
       await newRecording.prepareToRecordAsync(recordingOptions);
@@ -77,11 +87,11 @@ const MacchiCameraViewIndex = () => {
 
       if (!audioData) return;
 
-      const base64Data = await FileSystem.readAsStringAsync(audioData, {encoding: FileSystem.EncodingType.Base64,});
+      const base64Data = await FileSystem.readAsStringAsync(audioData, { encoding: FileSystem.EncodingType.Base64, });
       const rawAudioData = Buffer.from(base64Data, "base64").slice(44);
       const pcmBase64 = rawAudioData.toString("base64");
 
-      socket.emit('chatTest', { "realtime_input": [{ mime_type: 'audio/pcm', data: pcmBase64 }] }, (ack: any) => {
+      socket.emit('chat_test', { "realtime_input": [{ mime_type: 'audio/pcm', data: pcmBase64 }] }, (ack: any) => {
         if (ack?.success) {
           console.log('レスポンスがありました');
         } else {
@@ -94,6 +104,15 @@ const MacchiCameraViewIndex = () => {
       console.error('録音停止エラー:', err);
     }
   };
+
+  socket.on('connect_error', (err) => {
+    console.error('🔴 接続エラー:', err.message);
+  });
+
+  socket.on('disconnect', (reason) => {
+    console.warn('⚠️ ソケットが切断されました:', reason);
+  });
+
 
   if (!permission) return <Text>カメラの権限を確認中...</Text>;
   if (!permission.granted) return <CameraPermission requestPermission={requestPermission} />;

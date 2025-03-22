@@ -1,6 +1,12 @@
 {
+   "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff"
+  },
   "cSpell.words": [
+    "asgi",
+    "frombuffer",
     "genai",
-    "Macchi"
+    "Macchi",
+    "samplerate"
   ]
 }
