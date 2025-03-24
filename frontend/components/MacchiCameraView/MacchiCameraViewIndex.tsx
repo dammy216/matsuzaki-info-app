@@ -11,7 +11,7 @@ import { recordingOptions } from "@/components/MacchiCameraView/AudioSettings";
 import CameraPermission from "./CameraPermission";
 
 
-const socket = io('http://192.168.32.176:8080');
+const socket = io('http://192.168.32.158:8080');
 
 const MacchiCameraViewIndex = () => {
   const [permission, requestPermission] = useCameraPermissions();
