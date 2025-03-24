@@ -67,7 +67,7 @@ async def chat_test(sid, data):
              
             async def receive_from_gemini():  
                 try:     
-                    async for response in asyncio.wait_for(session.receive(), timeout=10):
+                    async for response in session.receive():
                             if response.text is None:
                                 continue
                             print(response.text, end="")
