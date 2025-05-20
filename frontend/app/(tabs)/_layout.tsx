@@ -20,13 +20,13 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <Ionicons name="leaf" size={24} color={color} />,
         }}
       />
-      <Tabs.Screen
+      {/* <Tabs.Screen
         name="settings"
         options={{
           title: '設定',
           tabBarIcon: ({ color }) => <Ionicons name="settings" size={24} color={color} />,
         }}
-      />
+      /> */}
     </Tabs>
   );
 }

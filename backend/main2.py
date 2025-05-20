@@ -6,6 +6,10 @@ import base64
 import sounddevice as sd
 import numpy as np
 import asyncio
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
 
 # SocketIO 初期化
 sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*", max_http_buffer_size=100* 1024 * 1024)
@@ -13,7 +17,7 @@ app = FastAPI()
 socket_app = socketio.ASGIApp(sio, app)
 
 # GenAI API 初期化
-client = genai.Client(api_key="", http_options={'api_version': 'v1alpha'})
+client = genai.Client(api_key="os.getenv('API_KEY')", http_options={'api_version': 'v1alpha'})
 model_id = "gemini-2.0-flash-exp"
 config = {"response_modalities": ["TEXT"]}
 
@@ -47,7 +51,7 @@ async def chat_test(sid, data):
             
             async def send_to_gemini():
                 try:
-                    for message in data["realtime_input"]:
+                    for message in data["realtime_input"][0]:
                         if message["mime_type"] == "audio/pcm":
                             decoded_sound_data = base64.b64decode(message["data"])
                             # **2. 音声データを Gemini に送信**
