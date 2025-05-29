@@ -61,10 +61,10 @@ const MacchiCameraViewIndex = () => {
         return;
       }
 
-      // if (cameraRef.current) {
-      //   const image = await cameraRef.current.takePictureAsync({ base64: true, imageType: 'jpg' });
-      //   setJpegBase64(image?.base64 ?? null);
-      // }
+      if (cameraRef.current) {
+        const image = await cameraRef.current.takePictureAsync({ base64: true, imageType: 'jpg' });
+        setJpegBase64(image?.base64 ?? null);
+      }
 
       const newRecording = new Audio.Recording();
       await newRecording.prepareToRecordAsync(recordingOptions);
@@ -91,7 +91,7 @@ const MacchiCameraViewIndex = () => {
       const rawAudioData = Buffer.from(base64Data, "base64").slice(44);
       const pcmBase64 = rawAudioData.toString("base64");
 
-      socket.emit('chat_test', { "realtime_input": [{ mime_type: 'audio/pcm', data: pcmBase64 }] }, (ack: any) => {
+      socket.emit('chat_test', { "realtime_input": [{ mime_type: 'audio/pcm', data: pcmBase64 }, { mime_type: 'image/jpeg', data: jpegBase64 }] }, (ack: any) => {
         if (ack?.success) {
           console.log('レスポンスがありました');
         } else {
