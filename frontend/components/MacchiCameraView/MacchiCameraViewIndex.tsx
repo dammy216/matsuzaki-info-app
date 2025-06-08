@@ -9,7 +9,7 @@ import * as FileSystem from 'expo-file-system';
 import { Buffer } from 'buffer';
 import { recordingOptions } from "@/components/MacchiCameraView/AudioSettings";
 import CameraPermission from "./CameraPermission";
-
+import { captureRef } from 'react-native-view-shot';
 
 const socket = io('http://192.168.32.158:8080');
 
@@ -20,6 +20,7 @@ const MacchiCameraViewIndex = () => {
   const [jpegBase64, setJpegBase64] = useState<string | null>(null);
 
   const cameraRef = useRef<CameraView | null>(null);
+  const cameraContainerRef = useRef(null);
 
   useEffect(() => {
     const setAudioMode = async () => {
@@ -118,9 +119,15 @@ const MacchiCameraViewIndex = () => {
   if (!permission.granted) return <CameraPermission requestPermission={requestPermission} />;
 
   return (
-    <View style={{ flex: 1 }}>
-      <CameraView style={{ flex: 1 }} ref={cameraRef} mode="picture" />
-      <TouchableOpacity style={styles.recordButton} onPress={isRecording ? stopRecord : startRecord}>
+    <View style={styles.container} ref={cameraContainerRef} >
+      <View style={styles.cameraContainer}>
+        <CameraView style={styles.camera} ref={cameraRef} mode="picture" />
+      </View>
+
+      <TouchableOpacity
+        style={styles.recordButton}
+        onPress={isRecording ? stopRecord : startRecord}
+      >
         <FontAwesome name="circle-thin" size={80} color={isRecording ? "red" : "white"} />
       </TouchableOpacity>
     </View>
@@ -128,11 +135,25 @@ const MacchiCameraViewIndex = () => {
 };
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    backgroundColor: 'black',
+    alignItems: 'center',
+  },
+  cameraContainer: {
+    width: '100%',
+    aspectRatio: 1 / 1,
+    position: 'absolute',
+    top: 20,
+  },
+  camera: {
+    flex: 1,
+  },
   recordButton: {
-    flex: 0,
-    alignSelf: "center",
-    position: "absolute",
-    bottom: 64,
+    alignSelf: 'center',
+    position: 'absolute',
+    bottom: 40,
   },
 });
 

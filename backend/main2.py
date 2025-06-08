@@ -8,6 +8,8 @@ import numpy as np
 import asyncio
 from dotenv import load_dotenv
 import os
+from PIL import Image
+import io
 
 load_dotenv()
 
@@ -21,19 +23,22 @@ client = genai.Client(api_key=os.getenv("API_KEY"), http_options={'api_version':
 model_id = "gemini-2.0-flash-live-001"
 config = {"response_modalities": ["TEXT"]}
 
-def play_pcm(pcm_data, samplerate=16000, channels=1):
+def show_image(image_data: bytes):
+    try:
+        # バイトデータを画像として読み込む
+        image = Image.open(io.BytesIO(image_data))
+
+        # 画像を表示（別ウィンドウで開く）
+        image.show()
+    except Exception as e:
+        print(f"画像表示エラー: {e}")
+
+def play_pcm(pcm_data, samplerate=16000):
     try:
         # PCMデータをnumpy配列に変換（int16型でリトルエンディアンを想定）
         audio_array = np.frombuffer(pcm_data, dtype=np.int16)
 
-        # モノラル（1チャンネル）の場合はそのまま再生
-        if channels == 1:
-            sd.play(audio_array, samplerate=samplerate)
-
-        # ステレオ（2チャンネル）の場合はデータをリシェイプ
-        elif channels == 2:
-            audio_array = audio_array.reshape(-1, 2)
-            sd.play(audio_array, samplerate=samplerate)
+        sd.play(audio_array, samplerate=samplerate)
 
         # 再生完了まで待機
         sd.wait()
@@ -62,6 +67,7 @@ async def chat_test(sid, data):
                         
                         elif message["mime_type"] == "image/jpeg":
                             decoded_image_data = base64.b64decode(message["data"])
+                            show_image(decoded_image_data)
                             await session.send(input={"mime_type": "image/jpeg", "data": decoded_image_data})
                             print(f"画像チャンクを送信しました: {decoded_image_data[:50]}")
                     
