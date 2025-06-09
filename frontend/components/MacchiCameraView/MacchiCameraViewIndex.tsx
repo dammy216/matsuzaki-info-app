@@ -7,9 +7,8 @@ import { Audio } from 'expo-av';
 import io from 'socket.io-client';
 import * as FileSystem from 'expo-file-system';
 import { Buffer } from 'buffer';
-import { recordingOptions } from "@/components/MacchiCameraView/AudioSettings";
 import CameraPermission from "./CameraPermission";
-import { captureRef } from 'react-native-view-shot';
+import AudioRecord from 'react-native-audio-record';
 
 const socket = io('http://192.168.32.158:8080');
 
@@ -53,29 +52,30 @@ const MacchiCameraViewIndex = () => {
   const startRecord = async () => {
     setIsRecording(true);
 
-    try {
-      const { status } = await Audio.requestPermissionsAsync();
+    // セッションを開始
+    socket.emit('start_session', {});
 
-      if (status !== 'granted') {
-        alert('マイクへのアクセスを許可してください');
-        setIsRecording(false);
-        return;
+    // 画像を取得したらすぐ送信
+    if (cameraRef.current) {
+      const image = await cameraRef.current.takePictureAsync({ base64: true, imageType: 'jpg' });
+      setJpegBase64(image?.base64 ?? null);
+      if (image?.base64) {
+        socket.emit('send_chunk', {
+          mime_type: 'image/jpeg',
+          data: image.base64,
+        });
       }
-
-      if (cameraRef.current) {
-        const image = await cameraRef.current.takePictureAsync({ base64: true, imageType: 'jpg' });
-        setJpegBase64(image?.base64 ?? null);
-      }
-
-      const newRecording = new Audio.Recording();
-      await newRecording.prepareToRecordAsync(recordingOptions);
-      await newRecording.startAsync();
-      setRecordingData(newRecording);
-
-    } catch (err) {
-      console.error('録音開始エラー:', err);
-      setIsRecording(false);
     }
+
+    // 録音開始 (BareならAudioRecordで)
+    AudioRecord.start();
+    // on('data', chunk => ... で随時チャンク送信)
+    AudioRecord.on('data', data => {
+      socket.emit('send_chunk', {
+        mime_type: 'audio/pcm',
+        data,
+      });
+    });
   };
 
   const stopRecord = async () => {
