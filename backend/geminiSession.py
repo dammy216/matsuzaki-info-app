@@ -19,7 +19,9 @@ client = genai.Client(api_key=os.getenv("API_KEY"), http_options={'api_version':
 model_id = "gemini-2.0-flash-live-001"
 config = {"response_modalities": ["TEXT"]}
 
+# 「どのクライアント（＝Socket.IOのsid）が、どのGeminiセッションを持っているか」を管理
 session_map = {}
+# 「どのクライアントが、Geminiからの応答を受け取る非同期タスク（asyncio.Task）」を持っているか」を管理
 receive_tasks = {}
 
 @sio.event
@@ -30,23 +32,37 @@ async def connect(sid, environ):
 async def start_session(sid, data):
     print(f"[start_session] {sid}")
     # 必要に応じてconfigをdataから渡す
-    session = await client.aio.live.connect(model=model_id, config=config)
-    session_map[sid] = session
+    # async with で session を管理
+    async def session_context():
+        async with client.aio.live.connect(model=model_id, config=config) as session:
+            session_map[sid] = session
 
-    # Gemini応答をリアルタイムでクライアントに流す
-    async def receive_from_gemini():
-        try:
-            async for response in session.receive():
-                if response.text:
-                    await sio.emit("gemini_text", response.text, to=sid)
-        except Exception as e:
-            print(f"[Gemini受信エラー] {e}")
+            # Gemini応答をリアルタイムでクライアントに流す
+            async def receive_from_gemini():
+                try:
+                    async for response in session.receive():
+                        if response.text:
+                            await sio.emit("gemini_text", response.text, to=sid)
+                except Exception as e:
+                    print(f"[Gemini受信エラー] {e}")
 
-    # タスクとして受信を開始
-    task = asyncio.create_task(receive_from_gemini())
-    receive_tasks[sid] = task
+            # タスクとして受信を開始
+            task = asyncio.create_task(receive_from_gemini())
+            receive_tasks[sid] = task
 
-    await sio.emit("session_started", {}, to=sid)
+            await sio.emit("session_started", {}, to=sid)
+
+            # セッションが生きている間スリープし続ける
+            try:
+                while True:
+                    await asyncio.sleep(1)
+            except asyncio.CancelledError:
+                pass  # セッション終了時にここに来る
+
+    # セッションごとに context をタスクとして実行
+    session_task = asyncio.create_task(session_context())
+    session_map[sid] = session_task
+
 
 @sio.event
 async def send_chunk(sid, data):

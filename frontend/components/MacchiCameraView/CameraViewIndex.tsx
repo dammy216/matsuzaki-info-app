@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import AudioRecord from "react-native-audio-record";
 import { Camera, PhotoFile, useCameraDevice, useCameraPermission } from "react-native-vision-camera";
 import io from "socket.io-client";
+import { AudioSetting } from "./AudioSettings";
 
 const socket = io("http://192.168.32.158:8080");
 const SAMPLE_RATE = 16000;
@@ -20,6 +21,7 @@ const CameraViewIndex = () => {
     if (hasPermission === false) {
       requestPermission();
     }
+    AudioRecord.init(AudioSetting);
   }, [hasPermission, requestPermission]);
 
   useEffect(() => {
