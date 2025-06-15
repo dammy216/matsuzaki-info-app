@@ -53,8 +53,8 @@ async def connect(sid, environ):
     print(f"✅ クライアント {sid} が接続しました")
           
 @sio.event
-async def start_session(sid):
-    async with client.session(model=model_id, config=config) as session:
+async def start_session(sid, data):
+    async with client.aio.live.connect(model=model_id, config=config) as session:
         session_map[sid] = session
         receive_tasks[sid] = asyncio.create_task(receive_from_gemini(session, sid))
         await sio.emit("session_started", {}, to=sid)
