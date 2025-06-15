@@ -4,9 +4,9 @@ import AudioRecord from "react-native-audio-record";
 import { Camera, PhotoFile, useCameraDevice, useCameraPermission } from "react-native-vision-camera";
 import io from "socket.io-client";
 import { AudioSetting } from "./AudioSettings";
+import * as FileSystem from 'expo-file-system';
 
 const socket = io("http://192.168.32.158:8080");
-const SAMPLE_RATE = 16000;
 
 const CameraViewIndex = () => {
   const { hasPermission, requestPermission } = useCameraPermission();
@@ -41,32 +41,23 @@ const CameraViewIndex = () => {
     // 音声ストリーミング
     AudioRecord.start();
     AudioRecord.on("data", (data) => {
-      socket.emit("send_chunk", {
-        mime_type: "audio/pcm",
-        data,
-      });
+      socket.emit("send_audio_chunk", { mime_type: "audio/pcm", data, });
     });
 
     // 1秒ごとにカメラプレビューのJPEGフレームを送信
-    imageIntervalRef.current = setInterval(async () => {
-      if (!cameraRef.current) return;
-      try {
-        // Vision Camera 2.17.0 以降 takeSnapshot 推奨
-        const frame: any = await cameraRef.current.takeSnapshot({
-          quality: 70,
-          base64: true,
-          skipMetadata: true,
-        });
-        if (frame?.base64) {
-          socket.emit("send_chunk", {
-            mime_type: "image/jpeg",
-            data: frame.base64,
-          });
+    imageIntervalRef.current = setInterval(() => {
+      (async () => {
+        try {
+          const frame = (await cameraRef.current?.takePhoto({ enableShutterSound: false }));
+          if (frame) {
+            const base64Frame = await FileSystem.readAsStringAsync(frame.path, { encoding: FileSystem.EncodingType.Base64 });
+            socket.emit("send_image_frame", { mime_type: "image/jpeg", data: base64Frame });
+          }
+        } catch (e) {
+          console.error("画像送信エラー:", e);
         }
-      } catch (e) {
-        // 画像送信失敗時は無視でOK
-      }
-    }, 1000); // 1秒ごと
+      })();
+    }, 1000);
   };
 
   // --- ストリーミング停止 ---
@@ -91,7 +82,7 @@ const CameraViewIndex = () => {
         style={styles.camera}
         device={device}
         isActive={true}
-        photo={false} // ここをfalseでOK。takeSnapshotのみ使う
+        photo={true}
       />
       <View style={styles.buttonRow}>
         <TouchableOpacity
