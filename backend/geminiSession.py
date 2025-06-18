@@ -26,7 +26,7 @@ def play_pcm(pcm_data, samplerate=16000):
         # PCMデータをnumpy配列に変換（int16型でリトルエンディアンを想定）
         audio_array = np.frombuffer(pcm_data, dtype=np.int16)
 
-        sd.play(audio_array, samplerate=samplerate)
+        sd.play(pcm_data, samplerate=samplerate)
 
         # 再生完了まで待機
         sd.wait()
@@ -39,7 +39,25 @@ session_map = {}
 receive_tasks = {}
 task_map = {}
 
+async def handle_session(sid):
+    try:
+        async with client.aio.live.connect(model=model_id, config=config) as session:
+            session_map[sid] = session
+            receive_tasks[sid] = asyncio.create_task(receive_from_gemini(session, sid))
+
+            # セッションが続く限り待機させる（例：終了をイベントなどで検知するまで）
+            await receive_tasks[sid]
+
+    except asyncio.CancelledError:
+        print(f"[handle_session] セッション {sid} はキャンセルされました")
+
+    finally:
+        session_map.pop(sid, None)
+        receive_tasks.pop(sid, None)
+        print(f"[handle_session] セッション {sid} が終了しました")
+
 async def receive_from_gemini(session, sid):
+    while True:
         async for response in session.receive():
             if data := response.data:
                 # await sio.emit("gemini_audio", data, to=sid)
@@ -54,10 +72,8 @@ async def connect(sid, environ):
           
 @sio.event
 async def start_session(sid, data):
-    async with client.aio.live.connect(model=model_id, config=config) as session:
-        session_map[sid] = session
-        receive_tasks[sid] = asyncio.create_task(receive_from_gemini(session, sid))
-        await sio.emit("session_started", {}, to=sid)
+     task_map[sid] = asyncio.create_task(handle_session(sid))
+     await sio.emit("session_started", {}, to=sid)
 
 @sio.event
 async def send_audio_chunk(sid, data):
@@ -79,22 +95,27 @@ async def send_image_frame(sid, data):
     await session.send(input={"mime_type": "image/jpeg", "data": image})
     print(f"[send_image_frame] {sid} 画像フレーム送信完了")
 
-@sio.event
-async def end_session(sid):
-    print(f"[end_session] {sid}")
-    session = session_map.pop(sid, None)
-    if session:
-        await session.close()
-    task = receive_tasks.pop(sid, None)
-    if task:
-        task.cancel()
-    await sio.emit("session_ended", {}, to=sid)
+# @sio.event
+# async def end_session(sid):
+#     print(f"[end_session] {sid}")
+#     session = session_map.pop(sid, None)
+#     if session:
+#         await session.close()
+#     task = receive_tasks.pop(sid, None)
+#     if task:
+#         task.cancel()
+#     await sio.emit("session_ended", {}, to=sid)
 
 @sio.event
 async def disconnect(sid):
     print(f"❌ クライアント {sid} が切断しました")
-    # セッションも強制終了
-    await end_session(sid)
+    session = session_map.pop(sid, None)
+    if session:
+        await session.close()
+    task = task_map.pop(sid, None)
+    if task:
+        task.cancel()
+
 
 # サーバー起動
 if __name__ == "__main__":

@@ -37,6 +37,7 @@ const CameraViewIndex = () => {
   const startRecording = () => {
     setIsRecording(true);
     socket.emit("start_session", {});
+    socket.emit("receive_from_gemini", {});
 
     // 音声ストリーミング
     AudioRecord.start();
