@@ -6,7 +6,8 @@ import base64
 import asyncio
 from dotenv import load_dotenv
 import os
-from utils.debugUtils import play_pcm
+from utils.debugUtils import play_gemini_pcm
+import websockets
 
 
 sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*", max_http_buffer_size=100* 1024 * 1024)
@@ -18,7 +19,7 @@ load_dotenv()
 # Gemini API 初期化
 client = genai.Client(api_key=os.getenv("API_KEY"), http_options={'api_version': 'v1beta'})
 model_id = "gemini-2.0-flash-live-001"
-config = {"response_modalities": ["TEXT"]}
+config = {"response_modalities": ["AUDIO"]}
 
 # 「どのクライアント（＝Socket.IOのsid）が、どのGeminiセッションを持っているか」を管理
 session_map = {}
@@ -32,43 +33,55 @@ async def handle_session(sid):
     try:
         async with client.aio.live.connect(model=model_id, config=config) as session:
             session_map[sid] = session
-            # 受信中もほかの処理を行えるようにするため、非同期タスクを作成
-            receive_tasks[sid] = asyncio.create_task(receive_from_gemini(session, sid))
 
+            # audio_queueをこのセッション専用に作る
+            audio_queue = asyncio.Queue()
+
+            # 受信タスク
+            receive_tasks[sid] = asyncio.create_task(receive_from_gemini(session, sid, audio_queue))
+
+            # 再生タスク
+            play_task = asyncio.create_task(play_gemini_pcm(audio_queue))
+
+            # どちらかが終わるまで待つ（どっちも並行でOK）
             await receive_tasks[sid]
+            # 通常、再生タスクも停止させる必要がある場合はキャンセルしてOK
+            play_task.cancel()
 
     except asyncio.CancelledError:
         print(f"[handle_session] セッション {sid} はキャンセルされました")
 
     finally:
-        # セッション終了時の後処理
         session_map.pop(sid, None)
         receive_tasks.pop(sid, None)
         task_map.pop(sid, None)
         print(f"[handle_session] セッション {sid} が終了しました")
 
+
 # Geminiからの応答を受信する非同期関数
-async def receive_from_gemini(session):
+
+async def receive_from_gemini(session, sid, audio_queue):
     while True:
-        async for response in session.receive():
-            if data := response.data:
-                # await sio.emit("gemini_audio", data, to=sid)
-                await play_pcm(data)
-                continue
-            if text := response.text:
-                print(text, end="")
+        try:
+            async for response in session.receive():
+                if data := response.data:
+                    await audio_queue.put(data)
+                if text := response.text:
+                    print(text, end="")
+        except websockets.exceptions.ConnectionClosedOK:
+            break 
 
 
 # ------------------------------------- socket.ioエンドポイント -------------------------------------------------------
 
 # クライアント接続イベント
 @sio.event
-async def connect(sid):
+async def connect(sid, environ):
     print(f"✅ クライアント {sid} が接続しました")
           
 # geminiセッション開始イベント
 @sio.event
-async def start_session(sid):
+async def start_session(sid, data):
      task_map[sid] = asyncio.create_task(handle_session(sid))
      print(f"[start_session] セッション {sid} を開始しました")
 # 音声チャンクをgeminiに送信するイベント
@@ -95,7 +108,7 @@ async def send_image_frame(sid, data):
 
 # geminiセッション終了イベント
 @sio.event
-async def end_session(sid):
+async def end_session(sid, data):
     session = session_map.get(sid)
     if session:
         await session.close()

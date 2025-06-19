@@ -56,10 +56,14 @@ import cv2
 import pyaudio
 import PIL.Image
 import mss
+import os
 
 import argparse
 
 from google import genai
+from dotenv import load_dotenv
+
+load_dotenv()
 
 if sys.version_info < (3, 11, 0):
     import taskgroup, exceptiongroup
