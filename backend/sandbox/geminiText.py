@@ -1,9 +1,13 @@
 import asyncio
 from google import genai
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # 最新版では API キーを明示的に渡す
 client = genai.Client(
-    api_key="AIzaSyB6QDdJEkq26NWsFKlVGiuifSAtKPNJ7z0",  # ※セキュリティ上、実際は環境変数で管理してください
+    api_key=os.getenv("API_KEY"),  # ※セキュリティ上、実際は環境変数で管理してください
     http_options={"api_version": "v1alpha"}
 )
 

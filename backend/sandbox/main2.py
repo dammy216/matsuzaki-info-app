@@ -3,13 +3,10 @@ import socketio
 import uvicorn
 from google import genai
 import base64
-import sounddevice as sd
-import numpy as np
 import asyncio
 from dotenv import load_dotenv
 import os
-from PIL import Image
-import io
+
 
 load_dotenv()
 
@@ -22,28 +19,6 @@ socket_app = socketio.ASGIApp(sio, app)
 client = genai.Client(api_key=os.getenv("API_KEY"), http_options={'api_version': 'v1alpha'})
 model_id = "gemini-2.0-flash-live-001"
 config = {"response_modalities": ["TEXT"]}
-
-def show_image(image_data: bytes):
-    try:
-        # バイトデータを画像として読み込む
-        image = Image.open(io.BytesIO(image_data))
-
-        # 画像を表示（別ウィンドウで開く）
-        image.show()
-    except Exception as e:
-        print(f"画像表示エラー: {e}")
-
-def play_pcm(pcm_data, samplerate=16000):
-    try:
-        # PCMデータをnumpy配列に変換（int16型でリトルエンディアンを想定）
-        audio_array = np.frombuffer(pcm_data, dtype=np.int16)
-
-        sd.play(audio_array, samplerate=samplerate)
-
-        # 再生完了まで待機
-        sd.wait()
-    except Exception as e:
-        print(f"音声再生エラー: {e}")
         
 @sio.event
 async def connect(sid, environ):
