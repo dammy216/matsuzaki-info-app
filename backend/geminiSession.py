@@ -48,7 +48,7 @@ async def handle_session(sid):
         print(f"[handle_session] セッション {sid} が終了しました")
 
 # Geminiからの応答を受信する非同期関数
-async def receive_from_gemini(session, sid):
+async def receive_from_gemini(session):
     while True:
         async for response in session.receive():
             if data := response.data:
@@ -63,12 +63,12 @@ async def receive_from_gemini(session, sid):
 
 # クライアント接続イベント
 @sio.event
-async def connect(sid, environ):
+async def connect(sid):
     print(f"✅ クライアント {sid} が接続しました")
           
 # geminiセッション開始イベント
 @sio.event
-async def start_session(sid, data):
+async def start_session(sid):
      task_map[sid] = asyncio.create_task(handle_session(sid))
      print(f"[start_session] セッション {sid} を開始しました")
 # 音声チャンクをgeminiに送信するイベント
