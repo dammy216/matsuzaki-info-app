@@ -18,30 +18,30 @@ export default function RootLayout() {
             headerStyle: { backgroundColor: 'white' },
             headerTitle: () => (
               <View style={headerStyle.headerTitleContainer}>
-                <Text style={headerStyle.headerTitle}>松崎町観光案内アプリ</Text>
                 <Image
-                  source={require('../assets/images/matsu-char2.jpg')}
+                  source={require('../assets/images/OIP.webp')}
                   style={headerStyle.headerLeftImage}
                 />
+                <Text style={headerStyle.headerTitle}>Gemini Session</Text>
               </View>
             ),
             headerRight: () => (
               <Menu>
                 <MenuTrigger customStyles={{ TriggerTouchableComponent: TouchableOpacity, triggerWrapper: headerStyle.controlButton }}>
                   <Image
-                    source={require('../assets/images/Emblem_of_Matsuzaki,_Shizuoka.svg.png')}
+                    source={require('../assets/images/google-icon.png')}
                     style={headerStyle.headerRightImage}
                   />
                 </MenuTrigger>
-                <MenuOptions optionsContainerStyle={headerStyle.optionsContainer}>
-                  <MenuOption onSelect={() => Linking.openURL('https://www.town.matsuzaki.shizuoka.jp/')}>
-                    <Text>松崎町HP</Text>
+                <MenuOptions customStyles={{ optionsContainer: headerStyle.optionsContainer }}>
+                  <MenuOption onSelect={() => Linking.openURL('https://ai.google.dev/gemini-api/docs/live?hl=ja')}>
+                    <Text>公式ドキュメント</Text>
                   </MenuOption>
-                  <MenuOption onSelect={() => Linking.openURL('https://izumatsuzakinet.com/')}>
-                    <Text>観光</Text>
+                  <MenuOption onSelect={() => Linking.openURL('https://aistudio.google.com/apikey')}>
+                    <Text>APIキー発行</Text>
                   </MenuOption>
-                  <MenuOption onSelect={() => Linking.openURL('https://www.town.matsuzaki.shizuoka.jp/docs/2018030100018/')}>
-                    <Text>まっちーについて</Text>
+                  <MenuOption onSelect={() => Linking.openURL('https://github.com/dammy216/matsuzaki-info-app')}>
+                    <Text>GitHub</Text>
                   </MenuOption>
                 </MenuOptions>
               </Menu>
@@ -58,10 +58,10 @@ const headerStyle = StyleSheet.create({
   headerTitleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
   },
   headerTitle: {
     fontSize: 20,
-    marginRight: 8,
   },
   headerLeftImage: {
     width: 32,

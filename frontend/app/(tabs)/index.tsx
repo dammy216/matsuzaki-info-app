@@ -1,5 +1,4 @@
-import CameraViewIndex from '@/components/MacchiCameraView/CameraViewIndex';
-import MacchiCameraViewIndex from '@/components/MacchiCameraView/MacchiCameraViewIndex';
+import CameraViewIndex from '@/src/components/CameraView/CameraViewIndex';
 import { View } from 'react-native';
 
 export default function CameraIndex() {

@@ -102,7 +102,7 @@ async def send_image_frame(sid, data):
     if not session:
         return
 
-    image = data["data"]
+    image = base64.b64decode(data["data"])
     await session.send(input={"mime_type": "image/jpeg", "data": image})
     print(f"[send_image_frame] {sid} 画像フレーム送信完了")
 

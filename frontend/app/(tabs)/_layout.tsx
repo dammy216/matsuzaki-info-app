@@ -16,8 +16,8 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'まっちーに聞く',
-          tabBarIcon: ({ color }) => <Ionicons name="leaf" size={24} color={color} />,
+          title: 'Geminiと会話',
+          tabBarIcon: ({ color }) => <Ionicons name="logo-google" size={24} color={color} />,
         }}
       />
       {/* <Tabs.Screen

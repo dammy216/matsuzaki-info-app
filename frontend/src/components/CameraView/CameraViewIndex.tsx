@@ -1,19 +1,23 @@
 import React, { useEffect, useRef, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import AudioRecord from "react-native-audio-record";
-import { Camera, PhotoFile, useCameraDevice, useCameraPermission } from "react-native-vision-camera";
+import { Camera, useCameraPermission } from "react-native-vision-camera";
 import io from "socket.io-client";
-import { AudioSetting } from "./AudioSettings";
 import * as FileSystem from 'expo-file-system';
+import { Ionicons } from "@expo/vector-icons";
+import { useCameraSettings } from "@/src/hooks/useCameraSettings";
+import { useAudioSettings } from "@/src/hooks/useAudioSettings";
 
 const socket = io("http://192.168.32.158:8080");
 
 const CameraViewIndex = () => {
   const { hasPermission, requestPermission } = useCameraPermission();
-  const device = useCameraDevice('back');
-  const cameraRef = useRef<Camera>(null);
+  const { device, format, photoQuality } = useCameraSettings();
+  const audioSetting = useAudioSettings();
 
   const [isRecording, setIsRecording] = useState(false);
+
+  const cameraRef = useRef<Camera>(null);
   const imageIntervalRef = useRef<number | null>(null);
 
   // 権限チェック
@@ -21,7 +25,7 @@ const CameraViewIndex = () => {
     if (hasPermission === false) {
       requestPermission();
     }
-    AudioRecord.init(AudioSetting);
+    AudioRecord.init(audioSetting);
   }, [hasPermission, requestPermission]);
 
   useEffect(() => {
@@ -73,7 +77,7 @@ const CameraViewIndex = () => {
   };
 
   if (!device || !hasPermission) {
-    return <View style={styles.center}><Text>カメラ/マイク権限がありません</Text></View>;
+    return <View style={styles.permission}><Text>カメラ/マイク権限がありません</Text></View>;
   }
 
   return (
@@ -84,13 +88,15 @@ const CameraViewIndex = () => {
         device={device}
         isActive={true}
         photo={true}
+        photoQualityBalance={photoQuality}
+        format={format}
       />
-      <View style={styles.buttonRow}>
+      <View style={styles.buttonContainer}>
         <TouchableOpacity
-          style={[styles.button, { backgroundColor: isRecording ? "#f55" : "#2c2" }]}
+          style={styles.recordButton}
           onPress={isRecording ? stopRecording : startRecording}
         >
-          <Text style={styles.btnText}>{isRecording ? "Stop" : "Rec"}</Text>
+          <Ionicons name="radio-button-on-outline" size={80} color={isRecording ? "red" : "white"} />
         </TouchableOpacity>
       </View>
     </View>
@@ -98,22 +104,32 @@ const CameraViewIndex = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#111" },
-  camera: { flex: 1 },
-  center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  buttonRow: {
+  container: {
+    flex: 1,
+    backgroundColor: "#111"
+  },
+  camera: {
+    flex: 3,
+    aspectRatio: 1 / 1,
+    alignSelf: "center",
+    overflow: "hidden",
+  },
+  buttonContainer: {
+    flex: 1,
     flexDirection: "row",
     justifyContent: "center",
     marginBottom: 32,
     gap: 32,
   },
-  button: {
-    padding: 24,
-    borderRadius: 100,
-    backgroundColor: "#222",
-    marginHorizontal: 16,
+  recordButton: {
+    alignSelf: 'center',
+    position: 'absolute',
+    bottom: 10,
   },
-  btnText: { fontSize: 24, color: "white" },
+  permission: {
+    flex: 1, alignItems: "center",
+    justifyContent: "center"
+  },
 });
 
 export default CameraViewIndex;
