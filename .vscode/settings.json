@@ -27,6 +27,7 @@
     "frombuffer",
     "genai",
     "Macchi",
+    "RNFS",
     "samplerate"
   ]
 }

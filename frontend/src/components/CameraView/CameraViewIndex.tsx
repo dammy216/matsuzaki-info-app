@@ -7,6 +7,8 @@ import * as FileSystem from 'expo-file-system';
 import { Ionicons } from "@expo/vector-icons";
 import { useCameraSettings } from "@/src/hooks/useCameraSettings";
 import { useAudioSettings } from "@/src/hooks/useAudioSettings";
+import Sound from 'react-native-sound';
+import RNFS from 'react-native-fs';
 
 const socket = io("http://192.168.32.158:8080");
 
@@ -20,6 +22,24 @@ const CameraViewIndex = () => {
   const cameraRef = useRef<Camera>(null);
   const imageIntervalRef = useRef<number | null>(null);
 
+  useEffect(() => {
+  const handleGeminiAudio = async (wavArrayBuffer: any) => {
+    const path = RNFS.CachesDirectoryPath + '/gemini_resp.wav';
+    await RNFS.writeFile(path, Buffer.from(wavArrayBuffer).toString('base64'), 'base64');
+
+    const sound = new Sound(path, '', (error) => {
+      if (!error) sound.play();
+      else console.error("音声ロードエラー:", error);
+    });
+  };
+
+  socket.on('gemini_response', handleGeminiAudio);
+
+  return () => {
+    socket.off('gemini_response', handleGeminiAudio);
+  };
+}, []);
+
   // 権限チェック
   useEffect(() => {
     if (hasPermission === false) {
@@ -28,20 +48,10 @@ const CameraViewIndex = () => {
     AudioRecord.init(audioSetting);
   }, [hasPermission, requestPermission]);
 
-  useEffect(() => {
-    socket.on("gemini_text", (text) => {
-      Alert.alert("AI応答", text);
-    });
-    return () => {
-      socket.off("gemini_text");
-    };
-  }, []);
-
   // --- 音声＋画像ストリーミング開始 ---
   const startRecording = () => {
     setIsRecording(true);
     socket.emit("start_session", {});
-    socket.emit("receive_from_gemini", {});
 
     // 音声ストリーミング
     AudioRecord.start();
@@ -69,7 +79,9 @@ const CameraViewIndex = () => {
   const stopRecording = () => {
     setIsRecording(false);
     AudioRecord.stop();
+
     socket.emit("end_session", {});
+
     if (imageIntervalRef.current) {
       clearInterval(imageIntervalRef.current);
       imageIntervalRef.current = null;
