@@ -6,7 +6,6 @@ import base64
 import asyncio
 from dotenv import load_dotenv
 import os
-from services.audio import pcm_to_wav_bytes
 from utils.debugUtils import play_gemini_pcm
 import websockets
 
@@ -66,8 +65,7 @@ async def receive_from_gemini(session, sid, audio_queue):
         try:
             async for response in session.receive():
                 if data := response.data:
-                    wav_data = await pcm_to_wav_bytes(data)
-                    await sio.emit("gemini_response", wav_data, to=sid)
+                    await sio.emit("gemini_response", data, to=sid)
                     await audio_queue.put(data)
                 if text := response.text:
                     print(text, end="")

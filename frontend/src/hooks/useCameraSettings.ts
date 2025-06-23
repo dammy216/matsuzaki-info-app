@@ -7,7 +7,7 @@ export const useCameraSettings = () => {
   const device = useCameraDevice('back');
 
   const format = useCameraFormat(device, [
-    { photoResolution: { width: 1280, height: 720 } }
+    { photoResolution: { width: 1024, height: 1024 } }
   ]);
 
   const photoQuality: CameraQuality = 'speed';
